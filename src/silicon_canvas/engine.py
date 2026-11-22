@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 from . import composition
+from . import generation_prompt
 from . import presentation
 from . import reference_selector
 from . import structure_scene
@@ -731,6 +732,12 @@ def compile_result(spec, settings, description="", feedback="", previous_spec=No
         figures.append({**fig, "prompt": prompt, "caption": (render_brief.caption(fig, spec) if is_render else _figure_caption(fig, spec)) + "\n" + diagram_design.caption(fig["diagram_design"]),
                         "reference_images": [], "inspiration_images": inspiration,
                         "negative_prompt": result["negative_prompt"] if is_render else "No invented hardware, parameters, connections or branding. Preserve the selected technical notation; no product-render lighting or material ornament on exact engineering diagrams.", "edit_prompt": edit})
+    for f in figures:
+        scene_size = (f.get("layout_scene", {}).get("width"), f.get("layout_scene", {}).get("height"))
+        composed = generation_prompt.compose(f, spec, settings, guide_size=scene_size if all(scene_size) and f.get("requires_layout_guide") else None,
+                                             user_notes=settings.get("notes", ""), feedback=feedback if not f.get("technical_annex") or figure_id == f["id"] else "")
+        f["generation_prompt"] = composed["prompt"]
+        f["generation_canvas"] = composed["canvas"]
     selected = next((f for f in figures if f["id"] == figure_id), next(f for f in figures if f.get("primary")))
     keys = {"id", "kind", "abstract", "title", "summary", "node_ids", "edge_indices", "context_nodes",
             "node_count", "edge_count", "view_role", "view_type", "main_group", "primary", "technical_annex", "design_contract", "diagram_design", "visual_contract", "figure_strategy", "layout_strategy", "source_edge_indices", "representation", "render_contract", "requires_composition_guide", "composition_guide_optional"}

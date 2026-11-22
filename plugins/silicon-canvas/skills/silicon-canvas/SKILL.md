@@ -17,6 +17,21 @@ Generate with the returned prompt and actual input roles:
 
 Use Image Gen when available. If the host has no image tool, deliver the compiled prompt and explain that image generation requires one. Do not substitute a hand-written SVG, draw.io diagram or another renderer for a requested Image Gen result. Do not rewrite the tool's art direction around a single example.
 
-Inspect the actual image for its reading structure, labels, arrow endpoints, source ownership and visual consistency. Use `silicon_prepare_review` when its source-grounded review will help. A valid specification or layout preflight does not approve the generated bitmap. Use natural feedback through prepare/compile for revisions; preserve the current source when the user only wants an appearance change.
+Use the returned `prompt` as-is and the `canvas` aspect (or its `gpt_image_size`) when the image tool lets you choose a size. The full rule set is at `contract_uri`; it is for review, not for generation.
+
+## Review loop (always run it)
+
+Image models rarely get a technical figure right in one pass. After every generated image:
+
+1. Save the image to a file and call `silicon_review_image(artifact_id, image_path)`. It measures canvas use, margins, aspect, palette and near-duplicates, and returns a blind cold-read task.
+2. Do the cold read. Best: give only the image and `cold_read.instructions` to a fresh context (a subagent or a separate model call) that has not seen the request or prompt. Otherwise write the cold read from the image alone before looking at the request again. Transcribe what is visible, including mistakes; do not correct it toward the intended figure. Score the `aesthetic_rubric` from the image.
+3. Call `silicon_submit_review(artifact_id, attempt, cold_read, aesthetic)`. Add `host_findings` only for problems the cold read could not express (for example a misleading hierarchy).
+4. Follow `decision.action`:
+   - `edit`: run Image Gen in edit mode on that attempt's image with `decision.prompt`.
+   - `regenerate`: generate a new image from `decision.prompt` (with the guide listed in `image_inputs`).
+   - `accept` or `stop`: show the user the image at `best_attempt.image_path`. On stop, also list the remaining differences.
+   Then return to step 1 with the new image. Do not show intermediate attempts unless the user asks.
+
+Compare `reading_check.cold_summary` with the intended point of the figure; a summary that misses the point is a hierarchy problem worth a host finding. A valid specification or layout preflight does not approve the bitmap. For user revisions, go through prepare/compile with `previous_artifact_id` and `feedback`; preserve the current source when the user only wants an appearance change.
 
 Show the resulting image and briefly identify any material limitation. Export the drawing bundle with `silicon_export` when the user needs the prompt, source or handoff files. Keep the workflow within the user's requested scope.

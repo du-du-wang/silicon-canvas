@@ -159,7 +159,8 @@ def assert_bundle(pack, payload, result, figure, guide=None):
     zipped = next(item for item in portable["figures"] if item["id"] == figure["id"])
     assert zipped["diagram_design"] == figure["diagram_design"]
     prefix = "figures/" + figure["id"] + "/"
-    assert pack.read(prefix + "prompt.txt").decode("utf-8") == figure["prompt"]
+    assert pack.read(prefix + "prompt.txt").decode("utf-8") == figure["generation_prompt"]
+    assert pack.read(prefix + "contract.txt").decode("utf-8") == figure["prompt"]
     assert pack.read(prefix + "caption.txt").decode("utf-8") == figure["caption"]
     assert json.loads(pack.read(prefix + "review-manifest.json"))["status"] == "not_reviewed"
     if guide is not None:

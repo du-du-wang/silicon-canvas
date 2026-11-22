@@ -135,7 +135,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
         with patch("silicon_canvas.provider.complete", side_effect=AssertionError("Host workflow must not call a provider")):
             async with Client(self.server) as client:
                 tools = (await client.list_tools()).tools
-                self.assertEqual({tool.name for tool in tools}, {"silicon_prepare", "silicon_compile", "silicon_generate", "silicon_export", "silicon_prepare_review"})
+                self.assertEqual({tool.name for tool in tools}, {"silicon_prepare", "silicon_compile", "silicon_generate", "silicon_export", "silicon_prepare_review", "silicon_review_image", "silicon_submit_review"})
                 prepared = await client.call_tool("silicon_prepare", {"description": DESCRIPTION})
                 self.assertFalse(prepared.is_error)
                 preparation = prepared.structured_content
@@ -179,7 +179,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(any(name.endswith("review-manifest.json") for name in archive.namelist()))
                     self.assertEqual(archive.read("figures/" + data["selected_figure_id"] + "/layout-guide.png"), guide)
                 templates = (await client.list_resource_templates()).resource_templates
-                self.assertEqual(len(templates), 5)
+                self.assertEqual(len(templates), 6)
                 self.assertIn("silicon://catalog", [str(r.uri) for r in (await client.list_resources()).resources])
 
     async def test_malformed_and_unowned_inputs_return_tool_errors(self):
@@ -258,7 +258,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             async with ClientSession(read, write) as client:
                 initialized = await client.initialize()
                 self.assertEqual(initialized.server_info.name, "Silicon Canvas")
-                self.assertEqual(len((await client.list_tools()).tools), 5)
+                self.assertEqual(len((await client.list_tools()).tools), 7)
                 compiled = await client.call_tool("silicon_compile", {"spec": source_spec()})
                 self.assertFalse(compiled.is_error, str(compiled.content))
                 data = compiled.structured_content

@@ -25,7 +25,8 @@ from design_coverage import (REPRESENTATIVE_CASES as DESIGN_CASES, source as des
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/editorial_benchmark/fresh-soc-final-source.json"
-TOOLS = {"silicon_prepare", "silicon_compile", "silicon_generate", "silicon_export", "silicon_prepare_review"}
+TOOLS = {"silicon_prepare", "silicon_compile", "silicon_generate", "silicon_export", "silicon_prepare_review",
+         "silicon_review_image", "silicon_submit_review"}
 ALGORITHM_FIXTURES = ("attention-dataflow", "online-attention-dataflow")
 
 
@@ -105,7 +106,8 @@ def assert_bounded_hardware_bundle(pack, result, figure, guide):
     for field in ("projection", "macro_nodes", "macro_edges", "layout_scene", "structure_layout", "label_layout"):
         assert projected[field] == json.loads(json.dumps(figure[field]))
     assert pack.read(prefix + "layout-guide.png") == guide
-    assert pack.read(prefix + "prompt.txt").decode("utf-8") == figure["prompt"]
+    assert pack.read(prefix + "prompt.txt").decode("utf-8") == figure["generation_prompt"]
+    assert pack.read(prefix + "contract.txt").decode("utf-8") == figure["prompt"]
     assert pack.read(prefix + "caption.txt").decode("utf-8") == figure["caption"]
     assert json.loads(pack.read(prefix + "review-manifest.json"))["status"] == "not_reviewed"
     assert prefix + "algorithm-flow-plan.json" not in pack.namelist()
@@ -262,7 +264,8 @@ def assert_algorithm_bundle(pack, result, figure):
     portable = json.loads(pack.read("result.json"))
     assert portable["spec"] == result["spec"] and portable["source_hash"] == result["source_hash"]
     assert json.loads(pack.read(prefix + "algorithm-flow-plan.json")) == figure["algorithm_flow_plan"]
-    assert pack.read(prefix + "prompt.txt").decode("utf-8") == figure["prompt"]
+    assert pack.read(prefix + "prompt.txt").decode("utf-8") == figure["generation_prompt"]
+    assert pack.read(prefix + "contract.txt").decode("utf-8") == figure["prompt"]
     assert pack.read(prefix + "caption.txt").decode("utf-8") == figure["caption"]
     assert prefix + "layout-guide.png" not in pack.namelist() and prefix + "composition-guide.png" not in pack.namelist()
     assert json.loads(pack.read(prefix + "review-manifest.json"))["status"] == "not_reviewed"
@@ -377,7 +380,7 @@ async def verify_design_cases(client, directory):
         figure = assert_design_contract(name, payload, complete)
         meta = next(item for item in data["figures"] if item["id"] == figure["id"])
         brief = json.loads((await client.read_resource(meta["brief_uri"])).contents[0].text)
-        assert brief["prompt"] == data["prompt"] == figure["prompt"]
+        assert brief["prompt"] == data["prompt"] == figure["generation_prompt"]
         assert brief["diagram_design"] == figure["diagram_design"]
         images = [item for item in output.content if isinstance(item, ImageContent)]
         if native_guide:
@@ -468,6 +471,9 @@ async def verify(command: Path, design_only: bool = False) -> dict:
                 brief = json.loads((await client.read_resource(selected_brief["brief_uri"])).contents[0].text)
                 assert brief["prompt"] == data["prompt"]
                 assert brief["caption"] == data["caption"]
+                contract = (await client.read_resource(data["contract_uri"])).contents[0].text
+                assert contract == next(figure["prompt"] for figure in complete["figures"]
+                                        if figure["id"] == data["selected_figure_id"])
                 exported = checked(await client.call_tool("silicon_export", {"artifact_id": data["artifact_id"]}))
                 exported_path = Path(exported["path"]).resolve()
                 assert exported_path.is_relative_to(directory / "artifacts")
@@ -481,6 +487,7 @@ async def verify(command: Path, design_only: bool = False) -> dict:
                     prefix = "figures/" + data["selected_figure_id"] + "/"
                     assert archive.read(prefix + "layout-guide.png") == guide
                     assert archive.read(prefix + "prompt.txt").decode("utf-8") == data["prompt"]
+                    assert archive.read(prefix + "contract.txt").decode("utf-8") == contract
                     assert archive.read(prefix + "caption.txt").decode("utf-8") == data["caption"]
                     assert json.loads(archive.read(prefix + "review-manifest.json"))["status"] == "not_reviewed"
                 review = checked(await client.call_tool("silicon_prepare_review", {"artifact_id": data["artifact_id"]}))
@@ -668,7 +675,7 @@ async def verify(command: Path, design_only: bool = False) -> dict:
                 assert base64.b64decode(bounded_resource.blob, validate=True) == bounded_guide
                 bounded_brief_meta = next(item for item in bounded_data["figures"] if item["id"] == bounded_data["selected_figure_id"])
                 bounded_brief = json.loads((await client.read_resource(bounded_brief_meta["brief_uri"])).contents[0].text)
-                assert bounded_brief["prompt"] == bounded_data["prompt"] == bounded_figure["prompt"]
+                assert bounded_brief["prompt"] == bounded_data["prompt"] == bounded_figure["generation_prompt"]
                 bounded_export = checked(await client.call_tool("silicon_export", {"artifact_id": bounded_data["artifact_id"]}))
                 bounded_export_path = Path(bounded_export["path"]).resolve()
                 assert bounded_export_path.is_relative_to(directory / "artifacts")
@@ -707,7 +714,7 @@ async def verify(command: Path, design_only: bool = False) -> dict:
                     selected_algorithm = next(item for item in algorithm_data["figures"] if item["id"] == algorithm_data["selected_figure_id"])
                     algorithm_brief = json.loads((await client.read_resource(selected_algorithm["brief_uri"])).contents[0].text)
                     assert algorithm_brief["algorithm_flow_plan"] == algorithm_figure["algorithm_flow_plan"]
-                    assert algorithm_brief["prompt"] == algorithm_data["prompt"] == algorithm_figure["prompt"]
+                    assert algorithm_brief["prompt"] == algorithm_data["prompt"] == algorithm_figure["generation_prompt"]
                     algorithm_export = checked(await client.call_tool("silicon_export", {"artifact_id": algorithm_data["artifact_id"]}))
                     algorithm_export_path = Path(algorithm_export["path"]).resolve()
                     assert algorithm_export_path.is_relative_to(directory / "artifacts")

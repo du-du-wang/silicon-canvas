@@ -33,7 +33,8 @@ def build(result,figure_id=''):
         for f in portable['figures']:
             if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',f['id']):raise ValueError('视图 ID 无效。')
             folder='figures/'+f['id']+'/'
-            archive.writestr(folder+'prompt.txt',f['prompt'])
+            archive.writestr(folder+'prompt.txt',f.get('generation_prompt',f['prompt']))
+            archive.writestr(folder+'contract.txt',f['prompt'])
             archive.writestr(folder+'caption.txt',f['caption'])
             archive.writestr(folder+'edit-prompt.txt',f['edit_prompt'])
             if f.get('review_task'):

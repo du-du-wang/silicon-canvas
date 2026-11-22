@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Compact Image Gen prompts and figure-specific canvas suggestions, with the full review contract available separately.
+- Image review loop with bitmap measurements, independent visual readback, and targeted edits or regeneration. Selection prioritizes images without outstanding technical issues.
 - Codex plugin with a discoverable marketplace entry, Silicon Canvas branding, the drawing workflow Skill, and its bundled MCP launcher.
 - Isolated, pinned backend setup on first use; existing clients can continue using the standalone MCP installation.
 - Plugin installation instructions in the README and Agent setup page.

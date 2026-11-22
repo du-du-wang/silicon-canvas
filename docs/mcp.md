@@ -66,10 +66,24 @@ Windows 可用 `-InstallDir`、`-Python` 覆盖安装位置与解释器；macOS/
 1. 调用 `silicon_prepare(description, settings)`，读取返回的语义要求和 `preparation_id`。
 2. 宿主模型整理完整 `spec`，保留用户事实、原文证据、假设与视觉意图。
 3. 调用 `silicon_compile(spec, preparation_id)`，取得提示词、参考角色、视图和 `artifact_id`。准备阶段的设置具有权威性，不在同一次编译中另传冲突的描述或设置。
-4. 按当前图的 `guide_role`、`guide_optional` 和 `next_step` 使用 ImageGen；实际查看结果。
-5. 有修改意见时重新准备、编译与生成；使用 `silicon_export` 保存绘图包，使用 `silicon_prepare_review` 获取源事实支持的审查要点。
+4. 用返回的 `prompt`（紧凑生图提示词，约 2–3 KB）和 `canvas` 画幅，按 `guide_role`、`guide_optional` 使用 ImageGen。完整规则契约在 `contract_uri`，用于审图，不直接发给生图模型。
+5. 进入审图回路（见下节），直到返回 `accept` 或 `stop`。
+6. 用户有修改意见时，带 `previous_artifact_id` 和 `feedback` 重新准备与编译；使用 `silicon_export` 保存绘图包。
 
-`silicon_prepare_review` 返回的是待审查材料，初始状态为 `not_reviewed`。它不读取最终图片，也不会自动批准图片。
+### 审图回路
+
+AI 生图很难一次画对技术图，所以每张图都走同一个回路：
+
+1. `silicon_review_image(artifact_id, image_path)`：只读取给定的 PNG/JPEG/WebP（也可传 `image_base64`），存一份为本轮尝试，测量画面占用率、留白、比例、配色和是否与上一轮几乎相同，并返回**冷读任务**。冷读任务不含任何源事实。
+2. 冷读：最好把图片和冷读说明交给一个没看过需求的新上下文（子 Agent 或单独的模型调用）；做不到时，先只看图写完冷读，再回看需求。冷读如实转写文字、箭头起止、分组，并按审美量表打分。
+3. `silicon_submit_review(artifact_id, attempt, cold_read, aesthetic)`：服务把冷读与生图提示词里的同一份内容清单机械比对，找出缺失、拼错或多出的文字，缺失、反向或多余的箭头，以及时序值错误；结合客观测量和审美分给出决策：
+   - `accept`：技术无差异且审美各项不低于 4（或已做过一轮润色且总体合格）。
+   - `edit`：接近正确，返回只列具体改动的短编辑提示词，对本轮图片做编辑。技术正确但审美未达标时也会先润色一轮。
+   - `regenerate`：结构差异太多、连续两次编辑未收敛或构图需要重来，返回生图提示词并附上要避免的问题。
+   - `stop`：达到尝试上限（默认 4），返回得分最高的一轮和剩余问题。
+4. 每轮都记录在产物目录的 `<figure>.loop.json`，`best_attempt` 指向得分最高的图片。
+
+`silicon_prepare_review` 仍可返回完整的源事实审查清单，用于人工或宿主补充检查。
 
 ### 正确使用参考图
 
